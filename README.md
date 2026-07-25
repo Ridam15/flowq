@@ -8,7 +8,7 @@
 [![sdk: @flowq/sdk](https://img.shields.io/badge/sdk-%40flowq%2Fsdk-orange.svg)](./packages/sdk)
 
 > **3-minute walkthrough video:** _coming soon — link will be added here._
-> [Deployment guide (GKE + Helm)](./DEPLOY.md) ·
+> [Deployment guide (Zero-Cost PaaS)](./DEPLOY.md) ·
 > [Load test results](./packages/loadtest/RESULTS.md) ·
 > [SDK reference](./packages/sdk/README.md)
 
@@ -280,10 +280,10 @@ All routes except `/health`, `/metrics`, and `/docs` require `Authorization: Bea
 
 ## Deployment
 
-Production deployment to GKE is fully automated via the Helm chart and the `deploy.yml` GitHub Actions workflow.
+FlowQ is designed to be deployed on zero-cost PaaS infrastructure for hobbyists, but ships with Helm charts for production Kubernetes environments.
 
-- **Helm chart:** [`infra/helm/flowq/`](./infra/helm/flowq/)
-- **Step-by-step GCP setup:** [`DEPLOY.md`](./DEPLOY.md) — project creation, GKE cluster, Workload Identity Federation, Prometheus + Grafana, the works.
+- **Step-by-step PaaS setup:** [`DEPLOY.md`](./DEPLOY.md) — Neon (Postgres), Upstash (Redis), Fly.io (API/Worker), and Vercel (Dashboard).
+- **Helm chart:** [`infra/helm/flowq/`](./infra/helm/flowq/) for Kubernetes.
 - **Local k8s** (kind / minikube): apply the raw manifests in [`infra/k8s/`](./infra/k8s/).
 
 ## Contributing
