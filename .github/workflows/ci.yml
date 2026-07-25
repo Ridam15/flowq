@@ -1,0 +1,120 @@
+# =============================================================================
+# CI — runs on every push + every PR.
+#
+# What it does:
+#   * checkout, install pnpm, install workspace
+#   * typecheck + lint + test for every package, in parallel
+#   * helm lint the chart so a broken template breaks the PR, not main
+#
+# What it does NOT do: build or push images. That lives in deploy.yml so
+# we don't waste GCR storage on PR commits that never land.
+# =============================================================================
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: typecheck + lint + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: flowq
+          POSTGRES_USER: flowq
+          POSTGRES_PASSWORD: flowq
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U flowq -d flowq"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: flowq
+      POSTGRES_USER: flowq
+      POSTGRES_PASSWORD: flowq
+      API_KEY: ci-test-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile=false
+
+      - name: Typecheck
+        run: pnpm -r --parallel run typecheck
+
+      - name: Lint
+        run: pnpm -r --parallel run lint
+
+      - name: Test
+        run: pnpm -r --parallel run test
+
+  helm:
+    name: helm lint + render
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.15.0
+
+      - run: helm lint ./infra/helm/flowq
+
+      # Renders against both the default values and the prod-example file
+      # to catch any template that breaks under a non-trivial config.
+      - name: helm template (default)
+        run: helm template flowq ./infra/helm/flowq --namespace flowq-prod > /tmp/flowq-default.yaml
+      - name: helm template (prod example)
+        run: |
+          helm template flowq ./infra/helm/flowq \
+            --namespace flowq-prod \
+            -f infra/helm/flowq/values-prod.example.yaml \
+            --set secrets.create=false > /tmp/flowq-prod.yaml
+
+      - name: Validate manifests with kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
+      - run: kubectl apply --dry-run=client -f /tmp/flowq-default.yaml
+      - run: kubectl apply --dry-run=client -f /tmp/flowq-prod.yaml

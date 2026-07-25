@@ -1,0 +1,202 @@
+# =============================================================================
+# Deploy — runs on push to main.
+#
+# Pipeline:
+#   1. test           — re-run the full test suite (don't deploy red builds)
+#   2. build-and-push — build api / worker / dashboard images in parallel,
+#                       push to gcr.io/${GCP_PROJECT_ID}/flowq-{svc}:{sha}
+#                       and :latest
+#   3. deploy         — `helm upgrade --install` against the GKE cluster,
+#                       overriding image tags to this commit's SHA
+#
+# Auth: Workload Identity Federation (no JSON keys). See DEPLOY.md for the
+# one-time setup of the GCP service account, WIF pool, and the
+# `vars`/`secrets` listed below.
+#
+# Required repository VARIABLES (settings → secrets and variables → variables):
+#   GCP_PROJECT_ID         e.g. my-flowq-prod
+#   GCP_PROJECT_NUMBER     e.g. 123456789012
+#   GCP_REGION             e.g. us-central1
+#   GKE_CLUSTER            e.g. flowq-prod
+#   GKE_LOCATION           e.g. us-central1   (region or zone)
+#   WIF_POOL               e.g. github-pool
+#   WIF_PROVIDER           e.g. github-provider
+#   DEPLOY_SA              e.g. flowq-deployer@my-flowq-prod.iam.gserviceaccount.com
+#   GAR_HOSTNAME           e.g. gcr.io                    (or us-docker.pkg.dev)
+#   HELM_NAMESPACE         e.g. flowq-prod
+#   HELM_RELEASE           e.g. flowq
+#   HELM_VALUES_FILE       e.g. infra/helm/flowq/values-prod.example.yaml
+# =============================================================================
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (defaults to git SHA)"
+        required: false
+
+permissions:
+  contents: read
+  id-token: write   # required for workload identity federation
+
+concurrency:
+  group: deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+
+jobs:
+  # -------------------------------------------------------------------------
+  test:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: flowq
+          POSTGRES_USER: flowq
+          POSTGRES_PASSWORD: flowq
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U flowq -d flowq"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: "6379"
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: flowq
+      POSTGRES_USER: flowq
+      POSTGRES_PASSWORD: flowq
+      API_KEY: ci-test-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10.33.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: "20", cache: "pnpm" }
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm -r --parallel run typecheck
+      - run: pnpm -r --parallel run test
+
+  # -------------------------------------------------------------------------
+  build-and-push:
+    name: build & push (${{ matrix.service }})
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: true
+      matrix:
+        service: [api, worker, dashboard]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ vars.WIF_POOL }}/providers/${{ vars.WIF_PROVIDER }}"
+          service_account: ${{ vars.DEPLOY_SA }}
+
+      - name: Configure docker for GCR
+        run: gcloud auth configure-docker ${{ vars.GAR_HOSTNAME }} --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: |
+            ${{ vars.GAR_HOSTNAME }}/${{ vars.GCP_PROJECT_ID }}/flowq-${{ matrix.service }}:${{ env.IMAGE_TAG }}
+            ${{ vars.GAR_HOSTNAME }}/${{ vars.GCP_PROJECT_ID }}/flowq-${{ matrix.service }}:latest
+          cache-from: type=gha,scope=flowq-${{ matrix.service }}
+          cache-to: type=gha,scope=flowq-${{ matrix.service }},mode=max
+
+  # -------------------------------------------------------------------------
+  deploy:
+    name: helm upgrade
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://${{ vars.HELM_NAMESPACE || 'flowq-prod' }}.flowq.example.com
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/${{ vars.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ vars.WIF_POOL }}/providers/${{ vars.WIF_PROVIDER }}"
+          service_account: ${{ vars.DEPLOY_SA }}
+
+      - name: Set up gcloud + GKE auth plugin
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          install_components: gke-gcloud-auth-plugin
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ vars.GKE_CLUSTER }}
+          location: ${{ vars.GKE_LOCATION }}
+
+      - uses: azure/setup-helm@v4
+        with: { version: v3.15.0 }
+
+      - name: Helm upgrade --install
+        run: |
+          set -euo pipefail
+          helm upgrade --install "${HELM_RELEASE}" ./infra/helm/flowq \
+            --namespace "${HELM_NAMESPACE}" \
+            --create-namespace \
+            -f "${HELM_VALUES_FILE}" \
+            --set image.registry="${GAR_HOSTNAME}/${GCP_PROJECT_ID}" \
+            --set image.tag="${IMAGE_TAG}" \
+            --set api.image.tag="${IMAGE_TAG}" \
+            --set worker.image.tag="${IMAGE_TAG}" \
+            --set dashboard.image.tag="${IMAGE_TAG}" \
+            --atomic \
+            --wait \
+            --timeout 8m
+        env:
+          HELM_RELEASE: ${{ vars.HELM_RELEASE }}
+          HELM_NAMESPACE: ${{ vars.HELM_NAMESPACE }}
+          HELM_VALUES_FILE: ${{ vars.HELM_VALUES_FILE }}
+          GAR_HOSTNAME: ${{ vars.GAR_HOSTNAME }}
+          GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+
+      - name: Smoke check rollout
+        run: |
+          kubectl -n "${HELM_NAMESPACE}" rollout status deploy/${HELM_RELEASE}-api --timeout=2m
+          kubectl -n "${HELM_NAMESPACE}" rollout status deploy/${HELM_RELEASE}-worker --timeout=2m
+          kubectl -n "${HELM_NAMESPACE}" rollout status deploy/${HELM_RELEASE}-dashboard --timeout=2m
+        env:
+          HELM_RELEASE: ${{ vars.HELM_RELEASE }}
+          HELM_NAMESPACE: ${{ vars.HELM_NAMESPACE }}

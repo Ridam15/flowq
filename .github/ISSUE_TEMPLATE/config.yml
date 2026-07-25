@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: FlowQ documentation
+    url: https://github.com/flowq/flowq#readme
+    about: Architecture deep-dive, API reference, deployment guide.
+  - name: Load test results & benchmarks
+    url: https://github.com/flowq/flowq/blob/main/packages/loadtest/RESULTS.md
+    about: Headline performance numbers and methodology.
