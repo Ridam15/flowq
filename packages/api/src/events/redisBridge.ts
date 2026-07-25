@@ -55,10 +55,7 @@ export function makeProcessSourceId(role: string): string {
  *          shutdown path must invoke it.
  */
 export async function startEventSubscriber(
-  host: string,
-  port: number,
   sourceId: string,
-  password?: string,
 ): Promise<() => Promise<void>> {
   if (subscriber !== null) {
     // Already started — return a no-op stopper to keep the API symmetric.
@@ -66,15 +63,23 @@ export async function startEventSubscriber(
   }
   selfSourceId = sourceId;
 
-  // Mirror the main Redis client's connect-retry posture so a slow
-  // start of Redis doesn't kill the API boot.
-  const sub = new IORedis({
-    host,
-    port,
-    password,
+  const baseConfig = {
     lazyConnect: false,
     maxRetriesPerRequest: null,
-  });
+  };
+
+  let sub: Redis;
+  if (process.env.REDIS_URL) {
+    sub = new IORedis(process.env.REDIS_URL, baseConfig);
+  } else {
+    sub = new IORedis({
+      ...baseConfig,
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: Number(process.env.REDIS_PORT ?? 6379),
+      password: process.env.REDIS_PASSWORD || undefined,
+      tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+    });
+  }
 
   // Surface connection errors but do NOT crash the API — without the
   // subscriber the only thing we lose is cross-replica live updates;

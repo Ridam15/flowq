@@ -115,10 +115,7 @@ async function main(): Promise<void> {
   // double-broadcasting events this replica itself produced.
   const sourceId = makeProcessSourceId('api');
   const stopSubscriber = await startEventSubscriber(
-    REDIS_HOST,
-    REDIS_PORT,
     sourceId,
-    REDIS_PASSWORD,
   );
 
   // Bind the http server so we can attach the WebSocket upgrader to
