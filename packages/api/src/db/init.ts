@@ -30,17 +30,25 @@ export interface InitDBOptions {
 export async function initDB(opts: InitDBOptions = {}): Promise<Pool> {
   if (pool) return pool;
 
-  const config: PoolConfig = {
-    host: opts.host ?? process.env.POSTGRES_HOST ?? 'localhost',
-    port: opts.port ?? Number(process.env.POSTGRES_PORT ?? 5432),
-    database: opts.database ?? process.env.POSTGRES_DB ?? 'flowq',
-    user: opts.user ?? process.env.POSTGRES_USER ?? 'flowq',
-    password: opts.password ?? process.env.POSTGRES_PASSWORD ?? 'flowq',
-    max: opts.max ?? 10,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
-    application_name: 'flowq-api',
-  };
+  const config: PoolConfig = process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        max: opts.max ?? 10,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+        application_name: 'flowq-api',
+      }
+    : {
+        host: opts.host ?? process.env.POSTGRES_HOST ?? 'localhost',
+        port: opts.port ?? Number(process.env.POSTGRES_PORT ?? 5432),
+        database: opts.database ?? process.env.POSTGRES_DB ?? 'flowq',
+        user: opts.user ?? process.env.POSTGRES_USER ?? 'flowq',
+        password: opts.password ?? process.env.POSTGRES_PASSWORD ?? 'flowq',
+        max: opts.max ?? 10,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+        application_name: 'flowq-api',
+      };
 
   pool = new Pool(config);
 

@@ -29,16 +29,24 @@ export interface InitRedisOptions {
 export function initRedis(opts: InitRedisOptions = {}): Redis {
   if (client) return client;
 
-  const config: RedisOptions = {
-    host: opts.host ?? process.env.REDIS_HOST ?? 'localhost',
-    port: opts.port ?? Number(process.env.REDIS_PORT ?? 6379),
+  const baseConfig: RedisOptions = {
     maxRetriesPerRequest: opts.maxRetriesPerRequest ?? null,
     enableReadyCheck: true,
     lazyConnect: false,
     retryStrategy: (times: number): number => Math.min(times * 200, 2_000),
   };
 
-  client = new Redis(config);
+  if (process.env.REDIS_URL) {
+    client = new Redis(process.env.REDIS_URL, baseConfig);
+  } else {
+    client = new Redis({
+      ...baseConfig,
+      host: opts.host ?? process.env.REDIS_HOST ?? 'localhost',
+      port: opts.port ?? Number(process.env.REDIS_PORT ?? 6379),
+      password: process.env.REDIS_PASSWORD || undefined,
+      tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+    });
+  }
 
   client.on('connect', () => {
     console.log(`[redis] connecting tcp://${config.host}:${config.port}`);

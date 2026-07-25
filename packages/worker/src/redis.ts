@@ -17,18 +17,24 @@ let client: Redis | null = null;
 export function initRedis(): Redis {
   if (client) return client;
 
-  const config: RedisOptions = {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: Number(process.env.REDIS_PORT ?? 6379),
-    // null disables the per-request retry cap so long-running scripts
-    // (the dequeue Lua, future watchdog scans) aren't aborted mid-flight.
+  const baseConfig: RedisOptions = {
     maxRetriesPerRequest: null,
     enableReadyCheck: true,
     lazyConnect: false,
     retryStrategy: (times: number): number => Math.min(times * 200, 2_000),
   };
 
-  client = new Redis(config);
+  if (process.env.REDIS_URL) {
+    client = new Redis(process.env.REDIS_URL, baseConfig);
+  } else {
+    client = new Redis({
+      ...baseConfig,
+      host: process.env.REDIS_HOST ?? 'localhost',
+      port: Number(process.env.REDIS_PORT ?? 6379),
+      password: process.env.REDIS_PASSWORD || undefined,
+      tls: process.env.REDIS_TLS === 'true' ? {} : undefined,
+    });
+  }
 
   client.on('connect', () => logger.info('redis_connect', { host: config.host, port: config.port }));
   client.on('ready', () => logger.info('redis_ready'));

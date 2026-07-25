@@ -19,17 +19,25 @@ let pool: Pool | null = null;
 export async function initDB(): Promise<Pool> {
   if (pool) return pool;
 
-  const config: PoolConfig = {
-    host: process.env.POSTGRES_HOST ?? 'localhost',
-    port: Number(process.env.POSTGRES_PORT ?? 5432),
-    database: process.env.POSTGRES_DB ?? 'flowq',
-    user: process.env.POSTGRES_USER ?? 'flowq',
-    password: process.env.POSTGRES_PASSWORD ?? 'flowq',
-    max: 5, // Worker holds fewer connections than the API.
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
-    application_name: 'flowq-worker',
-  };
+  const config: PoolConfig = process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        max: 5,
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+        application_name: 'flowq-worker',
+      }
+    : {
+        host: process.env.POSTGRES_HOST ?? 'localhost',
+        port: Number(process.env.POSTGRES_PORT ?? 5432),
+        database: process.env.POSTGRES_DB ?? 'flowq',
+        user: process.env.POSTGRES_USER ?? 'flowq',
+        password: process.env.POSTGRES_PASSWORD ?? 'flowq',
+        max: 5, // Worker holds fewer connections than the API.
+        idleTimeoutMillis: 30_000,
+        connectionTimeoutMillis: 5_000,
+        application_name: 'flowq-worker',
+      };
 
   pool = new Pool(config);
   pool.on('error', (err: Error) => logger.error('db_idle_error', { message: err.message }));
