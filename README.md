@@ -14,6 +14,15 @@
 
 ---
 
+## Live Deployment
+
+A live instance of this project is currently deployed and running on a zero-cost PaaS stack:
+- **Dashboard (Vercel)**: [https://flowq-dashboard.vercel.app](https://flowq-dashboard.vercel.app)
+- **API Base URL (Fly.io)**: `https://flowq-api-ridam.fly.dev`
+- **Worker (Fly.io)**: Running silently in the background
+
+---
+
 ## Architecture
 
 ```
