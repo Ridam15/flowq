@@ -36,7 +36,7 @@ export function initRedis(): Redis {
     });
   }
 
-  client.on('connect', () => logger.info('redis_connect', { host: config.host, port: config.port }));
+  client.on('connect', () => logger.info('redis_connect', { host: client?.options?.host, port: client?.options?.port }));
   client.on('ready', () => logger.info('redis_ready'));
   client.on('error', (err: Error) => logger.error('redis_error', { message: err.message }));
   client.on('close', () => logger.info('redis_close'));

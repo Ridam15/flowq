@@ -49,7 +49,7 @@ export function initRedis(opts: InitRedisOptions = {}): Redis {
   }
 
   client.on('connect', () => {
-    console.log(`[redis] connecting tcp://${config.host}:${config.port}`);
+    console.log(`[redis] connecting tcp://${client?.options?.host}:${client?.options?.port}`);
   });
 
   client.on('ready', () => {
