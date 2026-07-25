@@ -125,7 +125,7 @@ async function main(): Promise<void> {
   // the SAME listener Express is using. Single port, single origin —
   // dashboards open ws://host:PORT/ws on the same authority as the
   // REST endpoints, no CORS-for-WS dance required.
-  const server = app.listen(PORT, () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     process.stdout.write(
       `${JSON.stringify({
         ts: new Date().toISOString(),
