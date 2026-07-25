@@ -1,0 +1,13 @@
+app = "flowq-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "infra/docker/Dockerfile.worker"
+
+[env]
+  NODE_ENV = "production"
+  # Other required env vars will be set securely via Fly Secrets:
+  # REDIS_HOST, REDIS_PORT, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD
+
+# NOTE: There is intentionally no [http_service] or [[services]] block here.
+# Fly.io will run this as a pure background worker without expecting an HTTP port to bind.
