@@ -1,4 +1,4 @@
-app = "flowq-worker"
+app = "flowq-worker-ridam"
 primary_region = "iad"
 
 [build]

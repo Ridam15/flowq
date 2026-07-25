@@ -40,3 +40,5 @@ infra/helm/**/charts/
 infra/helm/**/Chart.lock
 infra/helm/*.tgz
 
+.vercel
+.env*
