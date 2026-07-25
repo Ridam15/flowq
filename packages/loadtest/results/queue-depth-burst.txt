@@ -1,0 +1,154 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: /Users/ridam.chhapiya/Documents/project2/flowq/packages/loadtest/scripts/../k6/flowq-load-test.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 100 max VUs, 1m0s max duration (incl. graceful stop):
+              * queueDepth: 100 looping VUs for 30s (exec: queueDepth, gracefulStop: 30s)
+
+
+running (0m01.0s), 100/100 VUs, 822 complete and 0 interrupted iterations
+queueDepth   [   3% ] 100 VUs  01.0s/30s
+
+running (0m02.0s), 100/100 VUs, 1706 complete and 0 interrupted iterations
+queueDepth   [   7% ] 100 VUs  02.0s/30s
+
+running (0m03.0s), 100/100 VUs, 2853 complete and 0 interrupted iterations
+queueDepth   [  10% ] 100 VUs  03.0s/30s
+
+running (0m04.0s), 100/100 VUs, 3665 complete and 0 interrupted iterations
+queueDepth   [  13% ] 100 VUs  04.0s/30s
+
+running (0m05.0s), 100/100 VUs, 4944 complete and 0 interrupted iterations
+queueDepth   [  17% ] 100 VUs  05.0s/30s
+
+running (0m06.0s), 100/100 VUs, 5941 complete and 0 interrupted iterations
+queueDepth   [  20% ] 100 VUs  06.0s/30s
+
+running (0m07.0s), 100/100 VUs, 7115 complete and 0 interrupted iterations
+queueDepth   [  23% ] 100 VUs  07.0s/30s
+
+running (0m08.0s), 100/100 VUs, 8642 complete and 0 interrupted iterations
+queueDepth   [  27% ] 100 VUs  08.0s/30s
+
+running (0m09.0s), 100/100 VUs, 10232 complete and 0 interrupted iterations
+queueDepth   [  30% ] 100 VUs  09.0s/30s
+
+running (0m10.0s), 100/100 VUs, 11622 complete and 0 interrupted iterations
+queueDepth   [  33% ] 100 VUs  10.0s/30s
+
+running (0m11.0s), 100/100 VUs, 12996 complete and 0 interrupted iterations
+queueDepth   [  37% ] 100 VUs  11.0s/30s
+
+running (0m12.0s), 100/100 VUs, 14043 complete and 0 interrupted iterations
+queueDepth   [  40% ] 100 VUs  12.0s/30s
+
+running (0m13.0s), 100/100 VUs, 15424 complete and 0 interrupted iterations
+queueDepth   [  43% ] 100 VUs  13.0s/30s
+
+running (0m14.0s), 100/100 VUs, 16650 complete and 0 interrupted iterations
+queueDepth   [  47% ] 100 VUs  14.0s/30s
+
+running (0m15.0s), 100/100 VUs, 17531 complete and 0 interrupted iterations
+queueDepth   [  50% ] 100 VUs  15.0s/30s
+
+running (0m16.0s), 100/100 VUs, 18146 complete and 0 interrupted iterations
+queueDepth   [  53% ] 100 VUs  16.0s/30s
+
+running (0m17.0s), 100/100 VUs, 18554 complete and 0 interrupted iterations
+queueDepth   [  57% ] 100 VUs  17.0s/30s
+
+running (0m18.0s), 100/100 VUs, 18767 complete and 0 interrupted iterations
+queueDepth   [  60% ] 100 VUs  18.0s/30s
+
+running (0m19.0s), 100/100 VUs, 19847 complete and 0 interrupted iterations
+queueDepth   [  63% ] 100 VUs  19.0s/30s
+
+running (0m20.0s), 100/100 VUs, 21146 complete and 0 interrupted iterations
+queueDepth   [  67% ] 100 VUs  20.0s/30s
+
+running (0m21.0s), 100/100 VUs, 22336 complete and 0 interrupted iterations
+queueDepth   [  70% ] 100 VUs  21.0s/30s
+
+running (0m22.0s), 100/100 VUs, 23386 complete and 0 interrupted iterations
+queueDepth   [  73% ] 100 VUs  22.0s/30s
+
+running (0m23.0s), 100/100 VUs, 24731 complete and 0 interrupted iterations
+queueDepth   [  77% ] 100 VUs  23.0s/30s
+
+running (0m24.0s), 100/100 VUs, 25773 complete and 0 interrupted iterations
+queueDepth   [  80% ] 100 VUs  24.0s/30s
+
+running (0m25.0s), 100/100 VUs, 27045 complete and 0 interrupted iterations
+queueDepth   [  83% ] 100 VUs  25.0s/30s
+
+running (0m26.0s), 100/100 VUs, 28172 complete and 0 interrupted iterations
+queueDepth   [  87% ] 100 VUs  26.0s/30s
+
+running (0m27.0s), 100/100 VUs, 28696 complete and 0 interrupted iterations
+queueDepth   [  90% ] 100 VUs  27.0s/30s
+
+running (0m28.0s), 100/100 VUs, 29303 complete and 0 interrupted iterations
+queueDepth   [  93% ] 100 VUs  28.0s/30s
+
+running (0m29.0s), 100/100 VUs, 30631 complete and 0 interrupted iterations
+queueDepth   [  97% ] 100 VUs  29.0s/30s
+
+running (0m30.0s), 100/100 VUs, 32026 complete and 0 interrupted iterations
+queueDepth   [ 100% ] 100 VUs  30.0s/30s
+
+
+  █ THRESHOLDS 
+
+    flowq_complete_latency_ms
+    ✓ 'p(95)<2000' p(95)=0s
+
+    flowq_enqueue_latency_ms
+    ✓ 'p(95)<200' p(95)=181ms
+    ✓ 'p(99)<500' p(99)=389ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 32162   1070.927913/s
+    checks_succeeded...: 100.00% 32162 out of 32162
+    checks_failed......: 0.00%   0 out of 32162
+
+    ✓ enqueue 201
+
+    CUSTOM
+    flowq_complete_latency_ms......: min=0s      avg=0s      med=0s     p(90)=0s       p(95)=0s       p(99)=0s       max=0s      
+    flowq_enqueue_latency_ms.......: min=32ms    avg=93.26ms med=77ms   p(90)=137ms    p(95)=181ms    p(99)=389ms    max=810ms   
+    flowq_jobs_enqueued............: 32162 1070.927913/s
+
+    HTTP
+    http_req_duration..............: min=31.69ms avg=93.21ms med=76.8ms p(90)=136.82ms p(95)=180.89ms p(99)=388.11ms max=809.25ms
+      { expected_response:true }...: min=31.69ms avg=93.21ms med=76.8ms p(90)=136.82ms p(95)=180.89ms p(99)=388.11ms max=809.25ms
+    http_req_failed................: 0.00% 0 out of 32162
+    http_reqs......................: 32162 1070.927913/s
+
+    EXECUTION
+    iteration_duration.............: min=31.74ms avg=93.31ms med=76.9ms p(90)=136.94ms p(95)=180.97ms p(99)=388.9ms  max=809.39ms
+    iterations.....................: 32162 1070.927913/s
+    vus............................: 100   min=100        max=100
+    vus_max........................: 100   min=100        max=100
+
+    NETWORK
+    data_received..................: 23 MB 776 kB/s
+    data_sent......................: 10 MB 342 kB/s
+
+
+
+
+running (0m30.0s), 000/100 VUs, 32162 complete and 0 interrupted iterations
+queueDepth ✓ [ 100% ] 100 VUs  30s

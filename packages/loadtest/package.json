@@ -1,0 +1,23 @@
+{
+  "name": "@flowq/loadtest",
+  "version": "0.0.1",
+  "private": true,
+  "description": "k6 + Node.js load and chaos test harness for FlowQ.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "echo 'no unit tests in loadtest package'",
+    "lint": "echo 'no lint in loadtest package'",
+    "typecheck": "echo 'no typecheck in loadtest package'",
+    "build": "echo 'no build in loadtest package'",
+    "loadtest:all": "bash scripts/run-all.sh",
+    "loadtest:baseline": "k6 run -e SCENARIO=baseline k6/flowq-load-test.js",
+    "loadtest:queue-depth": "k6 run -e SCENARIO=queueDepth k6/flowq-load-test.js",
+    "loadtest:priority": "k6 run -e SCENARIO=priority k6/flowq-load-test.js",
+    "loadtest:chaos": "node scripts/chaos-recovery.mjs",
+    "verify:priority": "node scripts/verify-priority.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

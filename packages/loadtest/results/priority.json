@@ -1,0 +1,23 @@
+{
+  "scenario": "priority",
+  "bands": [
+    {
+      "priority": 10,
+      "n": 305,
+      "avgRank": 155
+    },
+    {
+      "priority": 5,
+      "n": 345,
+      "avgRank": 476.2
+    },
+    {
+      "priority": 1,
+      "n": 350,
+      "avgRank": 825.5
+    }
+  ],
+  "pass": true,
+  "fullyOrdered": true,
+  "timestamp": "2026-04-18T21:23:19.952Z"
+}

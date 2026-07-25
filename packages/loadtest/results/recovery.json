@@ -1,0 +1,13 @@
+{
+  "scenario": "failureRecovery",
+  "workerKilled": "flowq-worker-1",
+  "workerIdKilled": "worker-9e59d9942fd4-7-1776547478380",
+  "activeAtKill": 2,
+  "recoveryTimeMs": 16367,
+  "jobsLost": 0,
+  "totalJobs": 200,
+  "completed": 200,
+  "dead": 0,
+  "pass": true,
+  "timestamp": "2026-04-18T21:27:45.794Z"
+}

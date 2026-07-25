@@ -1,0 +1,5 @@
+node_modules/
+# We commit the *latest* results so RESULTS.md stays cite-able, but ignore
+# anything beyond the canonical filenames.
+results/*.tmp
+results/*.bak

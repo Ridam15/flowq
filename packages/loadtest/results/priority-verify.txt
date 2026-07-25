@@ -1,0 +1,11 @@
+waiting for priority-scenario jobs to terminate…
+  1000/1000 terminal  1000/1000 terminal
+  drained: 1000 jobs
+
+  priority | jobs | avg completion rank (lower = earlier)
+  ---------+------+---------------------------------------
+       10 |  305 | 155.0
+        5 |  345 | 476.2
+        1 |  350 | 825.5
+
+  priority-10 avg rank 155 < priority-1 avg rank 825.5 → PASS

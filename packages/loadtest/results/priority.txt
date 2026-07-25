@@ -1,0 +1,67 @@
+
+         /\      Grafana   /‾‾/  
+    /\  /  \     |\  __   /  /   
+   /  \/    \    | |/ /  /   ‾‾\ 
+  /          \   |   (  |  (‾)  |
+ / __________ \  |_|\_\  \_____/ 
+
+
+     execution: local
+        script: /Users/ridam.chhapiya/Documents/project2/flowq/packages/loadtest/scripts/../k6/flowq-load-test.js
+        output: -
+
+     scenarios: (100.00%) 1 scenario, 50 max VUs, 5m30s max duration (incl. graceful stop):
+              * priority: 1000 iterations shared among 50 VUs (maxDuration: 5m0s, exec: priority, gracefulStop: 30s)
+
+
+running (0m01.0s), 50/50 VUs, 608 complete and 0 interrupted iterations
+priority   [  61% ] 50 VUs  0m01.0s/5m0s  0608/1000 shared iters
+
+
+  █ THRESHOLDS 
+
+    flowq_complete_latency_ms
+    ✓ 'p(95)<2000' p(95)=0s
+
+    flowq_enqueue_latency_ms
+    ✓ 'p(95)<200' p(95)=190ms
+    ✓ 'p(99)<500' p(99)=209ms
+
+    http_req_failed
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 1000    664.068829/s
+    checks_succeeded...: 100.00% 1000 out of 1000
+    checks_failed......: 0.00%   0 out of 1000
+
+    ✓ enqueue 201
+
+    CUSTOM
+    flowq_complete_latency_ms......: min=0s      avg=0s      med=0s      p(90)=0s       p(95)=0s       p(99)=0s       max=0s      
+    flowq_enqueue_latency_ms.......: min=32ms    avg=74.16ms med=61ms    p(90)=117.6ms  p(95)=190ms    p(99)=209ms    max=224ms   
+    flowq_jobs_enqueued............: 1000   664.068829/s
+
+    HTTP
+    http_req_duration..............: min=32.06ms avg=74.07ms med=61.16ms p(90)=117.55ms p(95)=189.41ms p(99)=207.9ms  max=223.52ms
+      { expected_response:true }...: min=32.06ms avg=74.07ms med=61.16ms p(90)=117.55ms p(95)=189.41ms p(99)=207.9ms  max=223.52ms
+    http_req_failed................: 0.00%  0 out of 1000
+    http_reqs......................: 1000   664.068829/s
+
+    EXECUTION
+    iteration_duration.............: min=32.15ms avg=74.42ms med=61.32ms p(90)=117.94ms p(95)=189.68ms p(99)=213.41ms max=227.82ms
+    iterations.....................: 1000   664.068829/s
+    vus............................: 50     min=50        max=50
+    vus_max........................: 50     min=50        max=50
+
+    NETWORK
+    data_received..................: 727 kB 483 kB/s
+    data_sent......................: 335 kB 222 kB/s
+
+
+
+
+running (0m01.5s), 00/50 VUs, 1000 complete and 0 interrupted iterations
+priority ✓ [ 100% ] 50 VUs  0m01.5s/5m0s  1000/1000 shared iters
