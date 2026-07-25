@@ -1,0 +1,34 @@
+{
+  "name": "flowq",
+  "version": "0.0.1",
+  "private": true,
+  "description": "FlowQ — a production-grade distributed task queue engine",
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:down": "docker compose down -v",
+    "build": "pnpm -r --parallel run build",
+    "test": "pnpm -r --parallel run test",
+    "lint": "pnpm -r --parallel run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md,yml,yaml}\"",
+    "typecheck": "pnpm -r --parallel run typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@typescript-eslint/eslint-plugin": "^7.16.0",
+    "@typescript-eslint/parser": "^7.16.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.3",
+    "vitest": "^1.6.0"
+  }
+}

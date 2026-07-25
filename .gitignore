@@ -1,0 +1,42 @@
+node_modules/
+dist/
+build/
+coverage/
+.turbo/
+.tsbuildinfo
+*.tsbuildinfo
+
+.env
+.env.local
+.env.*.local
+
+.DS_Store
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+.pnpm-store/
+
+dashboard/dist/
+.vite/
+
+# --- Kubernetes / Helm secrets -----------------------------------------------
+# secret.example.yaml is committed; the real one is NOT.
+infra/k8s/secret.yaml
+infra/helm/flowq/values.local.yaml
+infra/helm/flowq/secrets/
+*.kubeconfig
+*.secret.yaml
+
+# Helm packaging output
+infra/helm/**/charts/
+infra/helm/**/Chart.lock
+infra/helm/*.tgz
+
