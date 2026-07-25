@@ -1,0 +1,172 @@
+# =============================================================================
+# FlowQ Worker — job execution.
+#
+# Stateless pod, scaled by an HPA on queue depth (custom metric exposed by
+# the API's /metrics endpoint and surfaced to the metrics API by the
+# Prometheus Adapter).
+#
+# Multiple worker replicas are safe by construction:
+#   * claimJob() is an atomic Lua script — no two workers can claim the
+#     same job (see packages/worker/src/dequeue.ts)
+#   * The watchdog uses Redis-based leader election so only ONE replica
+#     runs the recovery loop at any time (see packages/worker/src/leader.ts)
+# =============================================================================
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flowq-worker
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: flowq
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+      app.kubernetes.io/part-of: flowq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/part-of: flowq
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: worker
+              app.kubernetes.io/part-of: flowq
+      containers:
+        - name: worker
+          image: gcr.io/PROJECT_ID/flowq-worker:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: flowq-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: flowq-secrets
+                  key: POSTGRES_PASSWORD
+            - name: QUEUE_NAME
+              value: "default"
+            # Useful for log correlation; populated by the downward API.
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          # The worker has no HTTP surface, so we use exec probes against a
+          # process-existence check. Real liveness comes from the heartbeat
+          # the worker writes to Redis (recovered by the watchdog).
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f 'node.*worker' >/dev/null"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 4
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          # The worker handles SIGTERM internally: stop polling, wait for
+          # the in-flight job to finish, then deregister. Give it room.
+          # 60s is generous; tune to your longest-running job duration.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# HPA — scale on queue depth (custom external metric).
+#
+# This requires the Prometheus Adapter to be installed and configured to
+# expose `flowq_queue_depth` to the external.metrics.k8s.io API. See
+# infra/k8s/monitoring.yaml for the adapter rule. Until that's wired up
+# the autoscaler will be in `ScalingActive=False (FailedGetExternalMetric)`
+# but min replicas (2) will keep workers running.
+#
+# Behaviour notes:
+#   * `target.averageValue` is per-replica, so with target=100 the HPA
+#     tries to keep `flowq_queue_depth / replicas` near 100.
+#     i.e. 1000 pending jobs across 10 pods = 100 per pod = at target.
+#   * `behavior` damps thrashing: scale-down is conservative (5min window),
+#     scale-up is aggressive (30s window) because backlog is expensive.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: flowq-worker
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: flowq
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: flowq-worker
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: flowq_queue_depth
+          selector:
+            matchLabels:
+              queueName: "default"
+              type:      "pending"
+        target:
+          type: AverageValue
+          averageValue: "100"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max

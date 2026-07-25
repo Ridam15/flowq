@@ -1,0 +1,54 @@
+# syntax=docker/dockerfile:1.7
+#
+# FlowQ Worker — production image. Same shape as Dockerfile.api; see that
+# file for the rationale on the multi-stage / re-install approach.
+
+ARG NODE_VERSION=20-alpine
+ARG PNPM_VERSION=10.33.0
+
+# ---------- deps ----------
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* tsconfig.base.json .npmrc ./
+COPY packages/api/package.json     packages/api/package.json
+COPY packages/sdk/package.json     packages/sdk/package.json
+COPY packages/worker/package.json  packages/worker/package.json
+COPY packages/dashboard/package.json packages/dashboard/package.json
+
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile=false
+
+# ---------- builder ----------
+FROM deps AS builder
+WORKDIR /repo
+COPY packages/sdk ./packages/sdk
+COPY packages/worker ./packages/worker
+RUN pnpm --filter @flowq/sdk build \
+ && pnpm --filter @flowq/worker build
+
+# ---------- runtime ----------
+FROM node:${NODE_VERSION} AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    NPM_CONFIG_LOGLEVEL=warn
+
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate \
+ && apk add --no-cache tini \
+ && addgroup -S flowq && adduser -S flowq -G flowq
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
+COPY packages/worker/package.json packages/worker/package.json
+COPY packages/sdk/package.json    packages/sdk/package.json
+
+RUN pnpm install --filter @flowq/worker --prod --frozen-lockfile=false
+
+COPY --from=builder /repo/packages/worker/dist ./packages/worker/dist
+COPY --from=builder /repo/packages/sdk/dist    ./packages/sdk/dist
+
+RUN chown -R flowq:flowq /app
+USER flowq
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "packages/worker/dist/index.js"]

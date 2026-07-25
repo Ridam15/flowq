@@ -1,0 +1,26 @@
+# Loads infra/grafana/dashboard.json into Grafana via the kube-prometheus-stack
+# Grafana sidecar (which watches for ConfigMaps labelled `grafana_dashboard=1`).
+#
+# Apply with kubectl:
+#
+#     kubectl create configmap flowq-grafana-dashboard \
+#         --namespace monitoring \
+#         --from-file=flowq.json=infra/grafana/dashboard.json \
+#         --dry-run=client -o yaml | \
+#       kubectl label --local -f - grafana_dashboard=1 -o yaml --dry-run=client | \
+#       kubectl apply -f -
+#
+# The shell pipeline above is the canonical way; this file is here as a
+# committed reference. Keep the `data:` field in sync with infra/grafana/dashboard.json
+# OR (recommended) drop this file and use the shell command above as part
+# of CI so you never hand-edit the embedded JSON.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flowq-grafana-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: flowq
+data:
+  flowq.json: ""  # populated by CI / kustomize / one-shot kubectl create

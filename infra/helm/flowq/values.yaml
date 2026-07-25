@@ -1,0 +1,165 @@
+# =============================================================================
+# FlowQ Helm chart — default values.
+#
+# Override per environment with `-f values-prod.yaml` or `--set key=value`.
+# Every field below is documented; defaults are tuned for a fresh GKE
+# cluster with both Redis and Postgres deployed in-cluster.
+# =============================================================================
+
+# ---- Global -----------------------------------------------------------------
+nameOverride: ""
+fullnameOverride: ""
+
+# Namespace the chart targets. The chart can OPTIONALLY create it (set
+# `namespace.create: true`) — by default we assume `kubectl create ns` or
+# `helm install -n` already happened.
+namespace:
+  name: flowq-prod
+  create: false
+
+# Image registry shared by all FlowQ services. Per-service overrides exist
+# under api.image, worker.image, dashboard.image.
+image:
+  registry: gcr.io/PROJECT_ID
+  pullPolicy: IfNotPresent
+  tag: ""                      # defaults to .Chart.AppVersion if empty
+
+imagePullSecrets: []
+# - name: gcr-credentials
+
+# Common labels merged into every resource the chart creates.
+commonLabels: {}
+
+# ---- Secrets ----------------------------------------------------------------
+# In production these come from GCP Secret Manager via the Secrets Store
+# CSI driver or the External Secrets Operator. See DEPLOY.md.
+#
+# When `secrets.create: true` the chart creates a regular k8s Secret with
+# the values below — convenient for local clusters, dangerous for prod.
+secrets:
+  create: true
+  name: flowq-secrets
+  postgresPassword: "flowq"
+  apiKey: "dev-api-key-change-me"
+
+# ---- Redis ------------------------------------------------------------------
+redis:
+  enabled: true                # set false to use external Redis (e.g. Memorystore)
+  host: ""                     # ignored when enabled=true (set for external)
+  port: 6379
+  image:
+    repository: redis
+    tag: "7-alpine"
+  persistence:
+    size: 5Gi
+    storageClassName: ""       # cluster default
+  resources:
+    requests:  { cpu: "100m", memory: "256Mi" }
+    limits:    { cpu: "500m", memory: "1Gi" }
+
+# ---- Postgres ---------------------------------------------------------------
+postgres:
+  enabled: true                # set false to use external Postgres (Cloud SQL)
+  host: ""                     # ignored when enabled=true
+  port: 5432
+  database: flowq
+  user: flowq
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  persistence:
+    size: 10Gi
+    storageClassName: ""
+  resources:
+    requests:  { cpu: "200m", memory: "512Mi" }
+    limits:    { cpu: "1000m", memory: "2Gi" }
+
+# ---- API --------------------------------------------------------------------
+api:
+  replicaCount: 2
+  image:
+    repository: flowq-api      # joined with global registry → gcr.io/.../flowq-api
+    tag: ""                    # falls back to .Values.image.tag, then appVersion
+    pullPolicy: ""             # falls back to .Values.image.pullPolicy
+  service:
+    type: ClusterIP
+    port: 3000
+  ingress:
+    enabled: true
+    className: gce
+    host: api.flowq.example.com
+    annotations: {}
+    # Static IP + managed cert example:
+    # annotations:
+    #   kubernetes.io/ingress.global-static-ip-name: "flowq-api"
+    #   networking.gke.io/managed-certificates: "flowq-api-cert"
+    tls: []
+    # - hosts: [api.flowq.example.com]
+    #   secretName: flowq-api-tls
+  resources:
+    requests:  { cpu: "100m", memory: "128Mi" }
+    limits:    { cpu: "500m", memory: "512Mi" }
+  podAnnotations: {}
+  env: {}                      # extra env vars merged into the container
+
+# ---- Worker -----------------------------------------------------------------
+worker:
+  replicaCount: 2              # initial; HPA owns scale at runtime
+  queueName: default
+  image:
+    repository: flowq-worker
+    tag: ""
+    pullPolicy: ""
+  resources:
+    requests:  { cpu: "200m", memory: "256Mi" }
+    limits:    { cpu: "1000m", memory: "1Gi" }
+  podAnnotations: {}
+  env: {}
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    # External metric exposed by the Prometheus Adapter. See
+    # infra/k8s/prometheus-adapter-values.yaml.
+    metricName: flowq_queue_depth
+    targetAverageValue: "100"
+    matchLabels:
+      queueName: default
+      type: pending
+
+# ---- Dashboard --------------------------------------------------------------
+dashboard:
+  replicaCount: 2
+  image:
+    repository: flowq-dashboard
+    tag: ""
+    pullPolicy: ""
+  service:
+    type: ClusterIP
+    port: 80
+  ingress:
+    enabled: true
+    className: gce
+    host: flowq.example.com
+    annotations: {}
+    tls: []
+  # Public-facing URL the BROWSER will call (NOT the cluster-internal one).
+  apiUrl: "https://api.flowq.example.com"
+  resources:
+    requests:  { cpu: "50m", memory: "64Mi" }
+    limits:    { cpu: "200m", memory: "256Mi" }
+  podAnnotations: {}
+
+# ---- Monitoring -------------------------------------------------------------
+# When true, the chart emits a ServiceMonitor for the API. This requires
+# the Prometheus Operator CRDs to be installed in-cluster (e.g. via the
+# kube-prometheus-stack chart). Safe to leave true even if they're missing —
+# the manifest just won't be applied.
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+    scrapeTimeout: 10s
+    # Label that the Prometheus CR's `serviceMonitorSelector` looks for.
+    additionalLabels:
+      release: kube-prom

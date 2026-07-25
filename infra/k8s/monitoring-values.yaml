@@ -1,0 +1,73 @@
+# =============================================================================
+# Helm values for the kube-prometheus-stack chart, tuned for FlowQ.
+#
+#   helm upgrade --install kube-prom \
+#       prometheus-community/kube-prometheus-stack \
+#       --namespace monitoring --create-namespace \
+#       -f infra/k8s/monitoring-values.yaml
+#
+# What this changes from defaults:
+#
+#   * Prometheus selectors are relaxed so it picks up FlowQ's
+#     ServiceMonitor without needing the `release: kube-prom` label.
+#   * Grafana auto-imports any ConfigMap labelled `grafana_dashboard=1`,
+#     including the FlowQ dashboard shipped under infra/grafana/.
+#   * 7-day retention for Prometheus + persistent volume so dashboards
+#     survive a pod restart.
+# =============================================================================
+
+prometheus:
+  prometheusSpec:
+    # Scrape EVERY ServiceMonitor / PodMonitor in the cluster, regardless
+    # of label selectors. Trade: any namespace can ship metrics into our
+    # Prometheus. For multi-tenant clusters tighten this back up.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+    retention: 7d
+    retentionSize: "8GiB"
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+    resources:
+      requests:
+        cpu: "200m"
+        memory: "1Gi"
+      limits:
+        cpu: "1000m"
+        memory: "2Gi"
+
+grafana:
+  adminPassword: "change-me-please"   # override at install with --set
+  persistence:
+    enabled: true
+    size: 5Gi
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+    datasources:
+      enabled: true
+
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# We don't need the alertmanager in dev. Flip to true and configure
+# `alertmanager.config` in production.
+alertmanager:
+  enabled: false

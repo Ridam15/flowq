@@ -1,0 +1,116 @@
+# =============================================================================
+# Postgres — durable audit log + dead letter queue.
+#
+# StatefulSet for the same reasons as Redis: stable DNS, owned PVC, ordered
+# rollout. Single replica intended for self-hosted clusters; in production
+# GKE prefer Cloud SQL for Postgres and point POSTGRES_HOST at the
+# Cloud SQL Auth Proxy sidecar.
+# =============================================================================
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flowq-postgres
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: flowq
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: flowq
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flowq-postgres
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: flowq
+spec:
+  serviceName: flowq-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/part-of: flowq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/part-of: flowq
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999          # `postgres` user inside official image
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: flowq-config
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: flowq-config
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: flowq-secrets
+                  key: POSTGRES_PASSWORD
+            # PGDATA in a subdirectory so the PVC mountpoint can hold
+            # `lost+found` etc. without confusing initdb.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "flowq", "-d", "flowq"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "flowq", "-d", "flowq"]
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi

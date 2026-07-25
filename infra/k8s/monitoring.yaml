@@ -1,0 +1,56 @@
+# =============================================================================
+# Monitoring stack — Prometheus + Grafana + Prometheus Adapter.
+#
+# This file gives you the FlowQ-specific bits:
+#   1. ServiceMonitor      — tells Prometheus to scrape the API's /metrics
+#   2. PodMonitor (worker) — same for the workers (no /metrics surface today,
+#                            disabled by default; flip when worker exposes one)
+#   3. Adapter rule        — surfaces flowq_queue_depth as an external metric
+#                            so the worker HPA can scale on it.
+#
+# The base stack (Prometheus operator, Grafana, kube-state-metrics, …) is
+# deployed via Helm:
+#
+#     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#     helm repo update
+#     helm upgrade --install kube-prom prometheus-community/kube-prometheus-stack \
+#         --namespace monitoring --create-namespace \
+#         -f infra/k8s/monitoring-values.yaml
+#
+#     helm upgrade --install prom-adapter prometheus-community/prometheus-adapter \
+#         --namespace monitoring \
+#         --set prometheus.url=http://kube-prom-kube-prometheus-prometheus.monitoring.svc \
+#         --set prometheus.port=9090 \
+#         -f infra/k8s/prometheus-adapter-values.yaml
+#
+# The Grafana dashboard JSON for FlowQ lives at infra/grafana/dashboard.json
+# and is auto-imported by the kube-prometheus-stack values file via a
+# ConfigMap with the `grafana_dashboard: "1"` label.
+# =============================================================================
+---
+# ServiceMonitor — Prometheus operator picks this up automatically as
+# long as `serviceMonitorSelector` in the Prometheus CR matches the labels
+# below (the kube-prometheus-stack default selector is the `release` label,
+# which monitoring-values.yaml relaxes to all-labels).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: flowq-api
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: flowq
+    release: kube-prom              # matches monitoring-values.yaml selector
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+      app.kubernetes.io/part-of: flowq
+  namespaceSelector:
+    matchNames: [flowq-prod]
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+      honorLabels: true

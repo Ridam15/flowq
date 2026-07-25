@@ -1,0 +1,39 @@
+# Anything not needed by `docker build` should be listed here. Smaller
+# context = faster builds and fewer cache invalidations.
+
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.turbo
+**/*.tsbuildinfo
+**/.vite
+**/.cache
+
+.git
+.github
+.vscode
+.idea
+.DS_Store
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.env
+.env.*
+!.env.example
+
+# infra/ contains Dockerfiles and k8s manifests; we ship Dockerfiles via
+# explicit -f and don't need anything else from infra/ inside the image.
+infra/k8s
+infra/helm
+infra/grafana
+
+# Local dev artefacts
+.pnpm-store
+test-results
+
+# Docs we never need at build time
+docs
+DEPLOY.md

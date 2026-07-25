@@ -1,0 +1,182 @@
+# =============================================================================
+# FlowQ API — control plane.
+# Stateless, horizontally scalable. Two replicas behind a ClusterIP, exposed
+# externally via a GKE Ingress.
+# =============================================================================
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: flowq-api
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: flowq
+  annotations:
+    # Hint for the GKE Ingress controller — terminate HTTP on port 3000.
+    cloud.google.com/neg: '{"ingress": true}'
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: flowq
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flowq-api
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: flowq
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # Zero-downtime rollouts. We never want to drop API capacity below
+      # the steady-state replica count while a deploy is in flight, so
+      # maxUnavailable=0; the new pod must come up before the old one dies.
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+      app.kubernetes.io/part-of: flowq
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+        app.kubernetes.io/part-of: flowq
+      annotations:
+        # Force a rollout when the configmap/secret changes (kubectl rollout
+        # restart still works, but a checksum makes Helm and Argo behave).
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      # Spread API pods across nodes so a single-node failure does not take
+      # the whole control plane down.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+              app.kubernetes.io/part-of: flowq
+      containers:
+        - name: api
+          image: gcr.io/PROJECT_ID/flowq-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: flowq-config
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: flowq-secrets
+                  key: POSTGRES_PASSWORD
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: flowq-secrets
+                  key: API_KEY
+          # Liveness vs readiness:
+          #   readiness gates traffic — fail fast (5s, 3 tries).
+          #   liveness restarts the pod — be very generous so a slow GC
+          #   pause doesn't trigger an unnecessary restart.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          # Hand a new pod a few seconds to warm caches before it joins
+          # the rotation. No-op if /health goes ready earlier.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          # Give the API time to drain in-flight HTTP requests + close the
+          # WebSocket fan-out before kubelet sends SIGKILL.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 10"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      terminationGracePeriodSeconds: 45
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# GKE Ingress. The default GCE controller will provision an external
+# HTTP(S) Load Balancer. Add a BackendConfig for /health if you want a
+# custom GCLB health check; the default TCP probe on port 3000 also works.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: flowq-api
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: flowq
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    # Replace with your reserved global static IP:
+    #   gcloud compute addresses create flowq-api --global
+    # kubernetes.io/ingress.global-static-ip-name: "flowq-api"
+    # Managed cert (uncomment + create the cert resource):
+    # networking.gke.io/managed-certificates: "flowq-api-cert"
+spec:
+  rules:
+    - host: api.flowq.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: flowq-api
+                port:
+                  number: 3000

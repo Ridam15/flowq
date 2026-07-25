@@ -1,0 +1,47 @@
+# =============================================================================
+# Helm values for prometheus-community/prometheus-adapter.
+#
+# The single rule below promotes the API-exposed counter
+# `flowq_queue_depth` (a gauge labelled `queue` and `type`) to the
+# external.metrics.k8s.io API so the worker HPA can scale on it:
+#
+#     metrics:
+#       - type: External
+#         external:
+#           metric:
+#             name: flowq_queue_depth
+#             selector: { matchLabels: { queue: default, type: pending } }
+#           target:
+#             type: AverageValue
+#             averageValue: "100"
+#
+# Replace `prometheus.url` if you used a different release name for
+# kube-prometheus-stack.
+# =============================================================================
+
+prometheus:
+  url: http://kube-prom-kube-prometheus-prometheus.monitoring.svc
+  port: 9090
+
+rules:
+  default: false
+
+  external:
+    - seriesQuery: 'flowq_queue_depth{queueName!="",type!=""}'
+      resources:
+        # We don't bind this metric to a particular k8s resource — the HPA
+        # uses it as an external metric, not a Pods/Object metric.
+        namespaced: false
+      name:
+        # Keep the original Prometheus name; HPA references it verbatim.
+        as: "flowq_queue_depth"
+      metricsQuery: |
+        max by (queueName, type) (flowq_queue_depth{queueName=~"<<.LabelMatchers.queueName>>", type=~"<<.LabelMatchers.type>>"})
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"

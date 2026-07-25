@@ -1,0 +1,79 @@
+# syntax=docker/dockerfile:1.7
+#
+# FlowQ API — production image.
+#
+# Layout:
+#   stage `deps`     — install ALL workspace deps once. Cached aggressively.
+#   stage `builder`  — compile TypeScript for @flowq/api (+ its workspace deps).
+#   stage `runtime`  — minimal node:alpine running only the compiled output
+#                      and the production npm subgraph for @flowq/api.
+#
+# Why this shape:
+#   - We cannot install only `@flowq/api`'s subgraph at the top, because in a
+#     pnpm workspace its `workspace:*` peers (e.g. @flowq/sdk) live in the
+#     repo, not in npm. So we install the full workspace once, build, then
+#     re-install with `--prod` for the runtime layer.
+#   - Two installs sound wasteful but they're cached on different layers and
+#     the runtime install is small (no devDependencies). Net image stays
+#     under ~150MB.
+#   - We never copy `node_modules` from `builder` to `runtime` — pnpm uses
+#     symlinks into a content-addressed store and those links break across
+#     stages. We re-install instead.
+
+ARG NODE_VERSION=20-alpine
+ARG PNPM_VERSION=10.33.0
+
+# ---------- deps ----------
+FROM node:${NODE_VERSION} AS deps
+WORKDIR /repo
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* tsconfig.base.json .npmrc ./
+COPY packages/api/package.json     packages/api/package.json
+COPY packages/sdk/package.json     packages/sdk/package.json
+COPY packages/worker/package.json  packages/worker/package.json
+COPY packages/dashboard/package.json packages/dashboard/package.json
+
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile=false
+
+# ---------- builder ----------
+FROM deps AS builder
+WORKDIR /repo
+COPY packages/sdk ./packages/sdk
+COPY packages/api ./packages/api
+RUN pnpm --filter @flowq/sdk build \
+ && pnpm --filter @flowq/api build
+
+# ---------- runtime ----------
+FROM node:${NODE_VERSION} AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    NPM_CONFIG_LOGLEVEL=warn
+
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate \
+ && apk add --no-cache tini curl \
+ && addgroup -S flowq && adduser -S flowq -G flowq
+
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* .npmrc ./
+COPY packages/api/package.json packages/api/package.json
+COPY packages/sdk/package.json packages/sdk/package.json
+
+# Production-only install of @flowq/api's runtime subgraph. The SDK is
+# pulled in transitively via workspace:* and resolved against the local
+# workspace package below.
+RUN pnpm install --filter @flowq/api --prod --frozen-lockfile=false
+
+# Compiled JS for both api and sdk (sdk because workspace deps need it).
+COPY --from=builder /repo/packages/api/dist ./packages/api/dist
+COPY --from=builder /repo/packages/sdk/dist ./packages/sdk/dist
+
+RUN chown -R flowq:flowq /app
+USER flowq
+
+EXPOSE 3000
+
+# Tini reaps zombies and forwards SIGTERM cleanly to Node so graceful
+# shutdown actually fires on `kubectl delete pod`.
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "packages/api/dist/index.js"]

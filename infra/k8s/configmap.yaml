@@ -1,0 +1,28 @@
+# Non-secret configuration shared by api + worker.
+# Anything that should NEVER appear in git (passwords, API keys) goes in
+# the Secret instead. Edit values for your environment.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flowq-config
+  namespace: flowq-prod
+  labels:
+    app.kubernetes.io/part-of: flowq
+data:
+  # --- Redis -----------------------------------------------------------------
+  REDIS_HOST: "flowq-redis"
+  REDIS_PORT: "6379"
+
+  # --- Postgres --------------------------------------------------------------
+  POSTGRES_HOST: "flowq-postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB:   "flowq"
+  POSTGRES_USER: "flowq"
+
+  # --- API -------------------------------------------------------------------
+  API_PORT: "3000"
+  NODE_ENV: "production"
+
+  # --- Worker tuning ---------------------------------------------------------
+  HEARTBEAT_MS: "15000"
+  POLL_INTERVAL_MS: "1000"

@@ -1,0 +1,131 @@
+{{- $fullName := printf "%s-dashboard" (include "flowq.fullname" .) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "flowq.componentLabels" (dict "context" . "component" "dashboard") | nindent 4 }}
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+spec:
+  type: {{ .Values.dashboard.service.type }}
+  selector:
+    {{- include "flowq.selectorLabels" (dict "context" . "component" "dashboard") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.dashboard.service.port }}
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "flowq.componentLabels" (dict "context" . "component" "dashboard") | nindent 4 }}
+spec:
+  replicas: {{ .Values.dashboard.replicaCount }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "flowq.selectorLabels" (dict "context" . "component" "dashboard") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "flowq.componentLabels" (dict "context" . "component" "dashboard") | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.dashboard.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        fsGroup: 101
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              {{- include "flowq.selectorLabels" (dict "context" . "component" "dashboard") | nindent 14 }}
+      containers:
+        - name: dashboard
+          image: {{ include "flowq.image" (dict "context" . "svc" .Values.dashboard) }}
+          imagePullPolicy: {{ include "flowq.imagePullPolicy" (dict "context" . "svc" .Values.dashboard) }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: FLOWQ_API_URL
+              value: {{ .Values.dashboard.apiUrl | quote }}
+            - name: FLOWQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "flowq.secretName" . }}
+                  key: API_KEY
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.dashboard.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /var/run
+      volumes:
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+{{- if .Values.dashboard.ingress.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "flowq.componentLabels" (dict "context" . "component" "dashboard") | nindent 4 }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.dashboard.ingress.className | quote }}
+    {{- with .Values.dashboard.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- with .Values.dashboard.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.dashboard.ingress.host }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ .Values.dashboard.service.port }}
+{{- end }}

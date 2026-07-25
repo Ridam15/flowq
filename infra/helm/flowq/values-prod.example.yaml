@@ -1,0 +1,55 @@
+# =============================================================================
+# Production overrides — copy, edit, and pass with `-f`:
+#
+#   helm upgrade --install flowq ./infra/helm/flowq \
+#       --namespace flowq-prod --create-namespace \
+#       -f infra/helm/flowq/values-prod.example.yaml
+#
+# Anything not overridden here inherits from values.yaml.
+# =============================================================================
+
+image:
+  registry: gcr.io/my-gcp-project
+  tag: ""                       # CI sets this to the commit SHA
+
+# In production, point at managed databases instead of running them in-cluster.
+redis:
+  enabled: false
+  host: 10.0.0.5                # Memorystore private IP
+  port: 6379
+
+postgres:
+  enabled: false
+  host: 127.0.0.1               # Cloud SQL Auth Proxy sidecar
+  port: 5432
+  database: flowq
+  user: flowq
+
+# When using GSM + External Secrets / CSI, set create=false and pre-create
+# the Secret with the same key names (POSTGRES_PASSWORD, API_KEY).
+secrets:
+  create: false
+  name: flowq-secrets
+
+api:
+  replicaCount: 3
+  ingress:
+    host: api.flowq.example.com
+    annotations:
+      kubernetes.io/ingress.global-static-ip-name: "flowq-api"
+      networking.gke.io/managed-certificates: "flowq-api-cert"
+
+worker:
+  replicaCount: 3
+  hpa:
+    minReplicas: 3
+    maxReplicas: 30
+
+dashboard:
+  replicaCount: 3
+  apiUrl: "https://api.flowq.example.com"
+  ingress:
+    host: flowq.example.com
+    annotations:
+      kubernetes.io/ingress.global-static-ip-name: "flowq-dashboard"
+      networking.gke.io/managed-certificates: "flowq-dashboard-cert"

@@ -1,0 +1,34 @@
+Thanks for installing {{ .Chart.Name }} v{{ .Chart.Version }} (app v{{ .Chart.AppVersion }}).
+
+Release: {{ .Release.Name }}
+Namespace: {{ .Values.namespace.name }}
+
+Components installed:
+  - API        : {{ include "flowq.fullname" . }}-api
+  - Worker     : {{ include "flowq.fullname" . }}-worker
+{{- if .Values.dashboard }}
+  - Dashboard  : {{ include "flowq.fullname" . }}-dashboard
+{{- end }}
+{{- if .Values.redis.enabled }}
+  - Redis      : {{ include "flowq.fullname" . }}-redis
+{{- end }}
+{{- if .Values.postgres.enabled }}
+  - Postgres   : {{ include "flowq.fullname" . }}-postgres
+{{- end }}
+
+1. Check rollout status:
+     kubectl -n {{ .Values.namespace.name }} get pods,svc,ingress
+
+2. Watch the API logs:
+     kubectl -n {{ .Values.namespace.name }} logs -f deploy/{{ include "flowq.fullname" . }}-api
+
+3. Once the GCE Ingress provisions an external IP (1-3 minutes), point your
+   DNS records at it:
+     kubectl -n {{ .Values.namespace.name }} get ingress
+
+{{- if eq .Values.secrets.apiKey "dev-api-key-change-me" }}
+
+WARNING: API_KEY is the default insecure value. Override with:
+     helm upgrade {{ .Release.Name }} ./infra/helm/flowq \
+         --set secrets.apiKey="$(openssl rand -hex 32)"
+{{- end }}

@@ -1,0 +1,21 @@
+apiVersion: v2
+name: flowq
+description: |
+  FlowQ — production-grade distributed task queue.
+  Bundles the API control plane, worker pool, dashboard, and the
+  in-cluster Redis + Postgres dependencies into a single chart.
+type: application
+version: 0.1.0          # chart version — bump on chart-only changes
+appVersion: "0.1.0"     # default image tag — overridden via values.yaml
+home: https://github.com/your-org/flowq
+sources:
+  - https://github.com/your-org/flowq
+maintainers:
+  - name: FlowQ Maintainers
+keywords:
+  - queue
+  - jobs
+  - workers
+  - redis
+  - postgres
+kubeVersion: ">=1.25.0-0"

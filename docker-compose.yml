@@ -1,0 +1,122 @@
+name: flowq
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: flowq-redis
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - flowq-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: flowq-postgres
+    environment:
+      POSTGRES_DB: flowq
+      POSTGRES_USER: flowq
+      POSTGRES_PASSWORD: flowq
+    ports:
+      # Host port 5433 (NOT 5432) so we don't conflict with a native
+      # Postgres install that's commonly on 5432. The API talks to
+      # postgres:5432 over the docker-compose network either way.
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - flowq-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowq -d flowq"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    container_name: flowq-api
+    environment:
+      NODE_ENV: production
+      API_PORT: "3000"
+      API_KEY: flowq_f596abe5b1cf2533a50156396792ec0b029e907d3a8a752f
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: flowq
+      POSTGRES_USER: flowq
+      POSTGRES_PASSWORD: flowq
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - flowq-net
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+    # No container_name: allows `docker compose up -d --scale worker=N`,
+    # which the failure-recovery load test depends on.
+    environment:
+      NODE_ENV: production
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: flowq
+      POSTGRES_USER: flowq
+      POSTGRES_PASSWORD: flowq
+      HEARTBEAT_MS: "15000"
+      WORKER_QUEUE: e2e-deploy
+      WORKER_POLL_MS: "200"
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - flowq-net
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.dashboard
+    container_name: flowq-dashboard
+    environment:
+      # Same env vars the k8s deployment uses; runtime-injected into /config.js by entrypoint.
+      FLOWQ_API_URL: http://localhost:3000
+      FLOWQ_API_KEY: flowq_f596abe5b1cf2533a50156396792ec0b029e907d3a8a752f
+    ports:
+      - "5173:8080"
+    depends_on:
+      - api
+    networks:
+      - flowq-net
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+    name: flowq-redis-data
+  postgres-data:
+    name: flowq-postgres-data
+
+networks:
+  flowq-net:
+    name: flowq-net
+    driver: bridge
