@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -------------------------------------------------------------------------
+ * Global resets / scaffolding for the SRE dashboard look.
+ *
+ * We keep this file tiny — Tailwind's preflight already nukes most browser
+ * defaults. We only need to:
+ *   1. Pin html/body/#root to fill the viewport so the tab pages can use
+ *      h-full with predictable behavior.
+ *   2. Establish the dark default colors as a CSS fallback for the brief
+ *      flash before React mounts.
+ *   3. Style the scrollbar to match the dark theme — the default light
+ *      scrollbar is jarring against the #0f1117 background.
+ * ------------------------------------------------------------------------- */
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: #0f1117;
+  color: #e2e6f3;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Webkit scrollbar — narrower, dark, with an accent thumb on hover. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #151823;
+}
+::-webkit-scrollbar-thumb {
+  background: #262b3d;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a4055;
+}
+
+/* Firefox */
+* {
+  scrollbar-color: #262b3d #151823;
+  scrollbar-width: thin;
+}
