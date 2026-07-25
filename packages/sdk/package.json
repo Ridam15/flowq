@@ -1,0 +1,66 @@
+{
+  "name": "@flowq/sdk",
+  "version": "0.1.0",
+  "description": "FlowQ TypeScript SDK — producer client for the FlowQ distributed task queue",
+  "license": "MIT",
+  "keywords": [
+    "queue",
+    "task-queue",
+    "redis",
+    "background-jobs",
+    "distributed",
+    "flowq",
+    "sdk",
+    "typescript"
+  ],
+  "homepage": "https://github.com/flowq/flowq#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/flowq/flowq.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/flowq/flowq/issues"
+  },
+  "main": "dist/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "pnpm run build:cjs && pnpm run build:esm",
+    "build:cjs": "tsc -p tsconfig.json",
+    "build:esm": "tsc -p tsconfig.esm.json && node -e \"require('fs').writeFileSync('dist/esm/package.json', JSON.stringify({type:'module'},null,2)+'\\n')\"",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true});require('fs').rmSync('tsconfig.tsbuildinfo',{force:true})\"",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint \"src/**/*.ts\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "pnpm run clean && pnpm run typecheck && pnpm run test && pnpm run build"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "vitest": "^1.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
